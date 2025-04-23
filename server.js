@@ -10,8 +10,18 @@ const app = express();
 app.use(cors());
 app.use(bodyParser.json({ limit: '10mb' }));
 
-// Render ortamında kimlik doğrulama otomatik olarak yapılır (require gerekmez)
-const client = new textToSpeech.TextToSpeechClient();
+// JSON içeriğini doğrudan dosyadan oku (Render uyumlu)
+const raw = fs.readFileSync(path.join(__dirname, process.env.GOOGLE_APPLICATION_CREDENTIALS));
+const credentials = JSON.parse(raw);
+
+// Elle tanımlı kimlik ile istemci oluştur
+const client = new textToSpeech.TextToSpeechClient({
+  credentials: {
+    client_email: credentials.client_email,
+    private_key: credentials.private_key,
+  },
+  projectId: credentials.project_id,
+});
 
 app.post('/synthesize', async (req, res) => {
   const { text, gender = 'FEMALE', languageCode = 'tr-TR' } = req.body;
