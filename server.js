@@ -10,15 +10,9 @@ const app = express();
 app.use(cors());
 app.use(bodyParser.json({ limit: '10mb' }));
 
-// GOOGLE_APPLICATION_CREDENTIALS dosyasını ortam değişkeninden oku (Render için)
-const CREDENTIALS = require(process.env.GOOGLE_APPLICATION_CREDENTIALS);
+// Render ortamında kimlik doğrulama otomatik olarak yapılır (require gerekmez)
+const client = new textToSpeech.TextToSpeechClient();
 
-// Google Cloud TTS istemcisi
-const client = new textToSpeech.TextToSpeechClient({
-  credentials: CREDENTIALS,
-});
-
-// Ana API: Flutter'dan metin ve ses tercihini alır
 app.post('/synthesize', async (req, res) => {
   const { text, gender = 'FEMALE', languageCode = 'tr-TR' } = req.body;
 
@@ -26,7 +20,6 @@ app.post('/synthesize', async (req, res) => {
     return res.status(400).send({ error: 'Text is required.' });
   }
 
-  // 🔊 Ücretsiz + profesyonel ses (Wavenet)
   const voiceName = gender === 'MALE' ? 'tr-TR-Wavenet-B' : 'tr-TR-Wavenet-A';
 
   const request = {
@@ -55,9 +48,9 @@ app.post('/synthesize', async (req, res) => {
       }
     });
   } catch (error) {
-  console.error('TTS Error:', error); // bu zaten var
-  res.status(500).send({ error: error.message || 'Google TTS failed.' });
-}
+    console.error('TTS Error:', error);
+    res.status(500).send({ error: error.message || 'Google TTS failed.' });
+  }
 });
 
 const PORT = process.env.PORT || 8080;
