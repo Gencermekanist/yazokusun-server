@@ -10,11 +10,11 @@ const app = express();
 app.use(cors());
 app.use(bodyParser.json({ limit: '10mb' }));
 
-// JSON içeriğini doğrudan dosyadan oku (Render uyumlu)
+// Kimlik bilgilerini dosyadan oku
 const raw = fs.readFileSync(path.join(__dirname, process.env.GOOGLE_APPLICATION_CREDENTIALS));
 const credentials = JSON.parse(raw);
 
-// Elle tanımlı kimlik ile istemci oluştur
+// Google TTS istemcisi
 const client = new textToSpeech.TextToSpeechClient({
   credentials: {
     client_email: credentials.client_email,
@@ -23,6 +23,7 @@ const client = new textToSpeech.TextToSpeechClient({
   projectId: credentials.project_id,
 });
 
+// Metni sese çevirme endpointi
 app.post('/synthesize', async (req, res) => {
   const { text, gender = 'FEMALE', languageCode = 'tr-TR' } = req.body;
 
