@@ -55,9 +55,9 @@ app.post('/synthesize', async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('TTS Error:', error);
-    res.status(500).send({ error: 'Google TTS failed.' });
-  }
+  console.error('TTS Error:', error); // bu zaten var
+  res.status(500).send({ error: error.message || 'Google TTS failed.' });
+}
 });
 
 const PORT = process.env.PORT || 8080;
