@@ -6,12 +6,15 @@ const util = require('util');
 const bodyParser = require('body-parser');
 const cors = require('cors');
 
+// ✅ Render ortamı için Google kimlik dosyasının yolunu elle belirliyoruz:
+process.env.GOOGLE_APPLICATION_CREDENTIALS = "/etc/secrets/tts-service-account.json";
+
 const app = express();
 app.use(cors());
 app.use(bodyParser.json({ limit: '10mb' }));
 
 // Kimlik bilgilerini dosyadan oku
-const raw = fs.readFileSync(path.join(__dirname, process.env.GOOGLE_APPLICATION_CREDENTIALS));
+const raw = fs.readFileSync(process.env.GOOGLE_APPLICATION_CREDENTIALS);
 const credentials = JSON.parse(raw);
 
 // Google TTS istemcisi
