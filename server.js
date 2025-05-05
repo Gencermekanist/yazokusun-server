@@ -6,27 +6,17 @@ const util = require('util');
 const bodyParser = require('body-parser');
 const cors = require('cors');
 
-// ✅ Render ortamı için Google kimlik dosyasının yolunu elle belirliyoruz:
+// ✅ Render ortamı için Google kimlik dosyasının yolunu belirtiyoruz:
 process.env.GOOGLE_APPLICATION_CREDENTIALS = "/etc/secrets/tts-service-account.json";
 
 const app = express();
 app.use(cors());
 app.use(bodyParser.json({ limit: '10mb' }));
 
-// Kimlik bilgilerini dosyadan oku
-const raw = fs.readFileSync(process.env.GOOGLE_APPLICATION_CREDENTIALS);
-const credentials = JSON.parse(raw);
+// ✅ Google TTS istemcisi - kimlik bilgilerini otomatik okur
+const client = new textToSpeech.TextToSpeechClient();
 
-// Google TTS istemcisi
-const client = new textToSpeech.TextToSpeechClient({
-  credentials: {
-    client_email: credentials.client_email,
-    private_key: credentials.private_key,
-  },
-  projectId: credentials.project_id,
-});
-
-// Metni sese çevirme endpointi
+// ✅ Metni sese çevirme endpointi
 app.post('/synthesize', async (req, res) => {
   const { text, gender = 'FEMALE', languageCode = 'tr-TR' } = req.body;
 
@@ -58,7 +48,7 @@ app.post('/synthesize', async (req, res) => {
 
     res.sendFile(outputPath, {}, (err) => {
       if (!err) {
-        setTimeout(() => fs.unlinkSync(outputPath), 5000);
+        setTimeout(() => fs.unlinkSync(outputPath), 5000); // 5 saniye sonra sil
       }
     });
   } catch (error) {
@@ -69,5 +59,5 @@ app.post('/synthesize', async (req, res) => {
 
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Google TTS Sunucusu dış dünyaya açık: http://0.0.0.0:${PORT}`);
+  console.log(`✅ Google TTS Sunucusu çalışıyor: http://0.0.0.0:${PORT}`);
 });
