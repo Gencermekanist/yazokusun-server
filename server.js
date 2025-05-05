@@ -65,6 +65,6 @@ app.post('/synthesize', async (req, res) => {
 });
 
 const PORT = process.env.PORT || 8080;
-app.listen(PORT, () => {
-  console.log(`Google TTS Sunucusu çalışıyor: http://localhost:${PORT}`);
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Google TTS Sunucusu dış dünyaya açık: http://0.0.0.0:${PORT}`);
 });
