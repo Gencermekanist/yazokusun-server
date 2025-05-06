@@ -6,17 +6,13 @@ const util = require('util');
 const bodyParser = require('body-parser');
 const cors = require('cors');
 
-// ✅ Render ortamı için Google kimlik dosyasının yolunu belirtiyoruz:
-process.env.GOOGLE_APPLICATION_CREDENTIALS = "/etc/secrets/tts-service-account.json";
-
 const app = express();
 app.use(cors());
 app.use(bodyParser.json({ limit: '10mb' }));
 
-// ✅ Google TTS istemcisi - kimlik bilgilerini otomatik okur
+// 🔑 Render ortamı GOOGLE_APPLICATION_CREDENTIALS değerini otomatik alır
 const client = new textToSpeech.TextToSpeechClient();
 
-// ✅ Metni sese çevirme endpointi
 app.post('/synthesize', async (req, res) => {
   const { text, gender = 'FEMALE', languageCode = 'tr-TR' } = req.body;
 
@@ -34,7 +30,7 @@ app.post('/synthesize', async (req, res) => {
       name: voiceName,
     },
     audioConfig: {
-      audioEncoding: 'LINEAR16', // ✅ MP3 yerine WAV formatı
+      audioEncoding: 'LINEAR16', // WAV formatı
       speakingRate: parseFloat(req.body.rate || 1.0),
     },
   };
@@ -42,13 +38,13 @@ app.post('/synthesize', async (req, res) => {
   try {
     const [response] = await client.synthesizeSpeech(request);
 
-    const fileName = `output_${Date.now()}.wav`; // ✅ uzantı .wav oldu
+    const fileName = `output_${Date.now()}.wav`;
     const outputPath = path.join(__dirname, fileName);
     await util.promisify(fs.writeFile)(outputPath, response.audioContent, 'binary');
 
     res.sendFile(outputPath, {}, (err) => {
       if (!err) {
-        setTimeout(() => fs.unlinkSync(outputPath), 5000); // 5 saniye sonra sil
+        setTimeout(() => fs.unlinkSync(outputPath), 5000);
       }
     });
   } catch (error) {
