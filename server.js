@@ -34,7 +34,7 @@ app.post('/synthesize', async (req, res) => {
       name: voiceName,
     },
     audioConfig: {
-      audioEncoding: 'MP3',
+      audioEncoding: 'LINEAR16', // ✅ MP3 yerine WAV formatı
       speakingRate: parseFloat(req.body.rate || 1.0),
     },
   };
@@ -42,7 +42,7 @@ app.post('/synthesize', async (req, res) => {
   try {
     const [response] = await client.synthesizeSpeech(request);
 
-    const fileName = `output_${Date.now()}.mp3`;
+    const fileName = `output_${Date.now()}.wav`; // ✅ uzantı .wav oldu
     const outputPath = path.join(__dirname, fileName);
     await util.promisify(fs.writeFile)(outputPath, response.audioContent, 'binary');
 
