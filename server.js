@@ -6,6 +6,9 @@ const util = require('util');
 const bodyParser = require('body-parser');
 const cors = require('cors');
 
+process.env.GOOGLE_APPLICATION_CREDENTIALS = "/etc/secrets/tts_service_account_json";
+
+
 const app = express();
 app.use(cors());
 app.use(bodyParser.json({ limit: '10mb' }));
