@@ -58,7 +58,6 @@ app.post('/synthesize', async (req, res) => {
 
 const PORT = process.env.PORT || 8080;
 
-
 app.get('/voice-info', (req, res) => {
   const gender = req.query.gender || 'FEMALE';
   const voiceName = gender === 'MALE' ? 'tr-TR-Wavenet-B' : 'tr-TR-Wavenet-A';
