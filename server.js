@@ -6,16 +6,24 @@ const util = require('util');
 const bodyParser = require('body-parser');
 const cors = require('cors');
 
-process.env.GOOGLE_APPLICATION_CREDENTIALS = "/etc/secrets/tts_service_account_json";
-
-
 const app = express();
 app.use(cors());
 app.use(bodyParser.json({ limit: '10mb' }));
 
-// 🔑 Render ortamı GOOGLE_APPLICATION_CREDENTIALS değerini otomatik alır
-const client = new textToSpeech.TextToSpeechClient();
+// 🔐 Google kimlik bilgilerini Render ortamından alıyoruz
+const raw = fs.readFileSync(path.join(__dirname, process.env.GOOGLE_APPLICATION_CREDENTIALS));
+const credentials = JSON.parse(raw);
 
+// 🧠 Google TTS istemcisi
+const client = new textToSpeech.TextToSpeechClient({
+  credentials: {
+    client_email: credentials.client_email,
+    private_key: credentials.private_key,
+  },
+  projectId: credentials.project_id,
+});
+
+// 🎯 Metni sese çeviren endpoint
 app.post('/synthesize', async (req, res) => {
   const { text, gender = 'FEMALE', languageCode = 'tr-TR' } = req.body;
 
@@ -56,14 +64,14 @@ app.post('/synthesize', async (req, res) => {
   }
 });
 
-const PORT = process.env.PORT || 8080;
-
+// ✅ Ek test için ses bilgisini döndüren endpoint
 app.get('/voice-info', (req, res) => {
   const gender = req.query.gender || 'FEMALE';
   const voiceName = gender === 'MALE' ? 'tr-TR-Wavenet-B' : 'tr-TR-Wavenet-A';
   res.json({ selectedVoice: voiceName });
 });
 
+const PORT = process.env.PORT || 8080;
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`✅ Google TTS Sunucusu çalışıyor: http://0.0.0.0:${PORT}`);
 });
