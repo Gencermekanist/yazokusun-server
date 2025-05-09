@@ -10,11 +10,11 @@ const app = express();
 app.use(cors());
 app.use(bodyParser.json({ limit: '10mb' }));
 
-// 🔐 Google kimlik bilgilerini Render ortamından alıyoruz
+// 🔐 Google kimlik bilgilerini ortamdan al
 const raw = fs.readFileSync(path.join(__dirname, process.env.GOOGLE_APPLICATION_CREDENTIALS));
 const credentials = JSON.parse(raw);
 
-// 🧠 Google TTS istemcisi
+// 🎤 Google TTS istemcisi
 const client = new textToSpeech.TextToSpeechClient({
   credentials: {
     client_email: credentials.client_email,
@@ -23,15 +23,16 @@ const client = new textToSpeech.TextToSpeechClient({
   projectId: credentials.project_id,
 });
 
-// 🎯 Metni sese çeviren endpoint
+// 📢 TTS endpoint – Çoklu dil ve ses desteği
 app.post('/synthesize', async (req, res) => {
-  const { text, gender = 'FEMALE', languageCode = 'tr-TR' } = req.body;
+  const { text, gender = 'FEMALE', languageCode = 'tr-TR', rate = 1.0 } = req.body;
 
-  if (!text || text.length === 0) {
+  if (!text || text.trim().length === 0) {
     return res.status(400).send({ error: 'Text is required.' });
   }
 
-  const voiceName = gender === 'MALE' ? 'tr-TR-Wavenet-B' : 'tr-TR-Wavenet-A';
+  // 🌍 Çoklu dil ve cinsiyet desteği ile ses seçimi
+  const voiceName = `${languageCode}-Wavenet-${gender === 'MALE' ? 'B' : 'A'}`;
 
   const request = {
     input: { text },
@@ -42,20 +43,22 @@ app.post('/synthesize', async (req, res) => {
     },
     audioConfig: {
       audioEncoding: 'MP3',
-      speakingRate: parseFloat(req.body.rate || 1.0),
+      speakingRate: parseFloat(rate),
     },
   };
 
   try {
     const [response] = await client.synthesizeSpeech(request);
-
     const fileName = `output_${Date.now()}.mp3`;
     const outputPath = path.join(__dirname, fileName);
     await util.promisify(fs.writeFile)(outputPath, response.audioContent, 'binary');
 
     res.sendFile(outputPath, {}, (err) => {
       if (!err) {
-        setTimeout(() => fs.unlinkSync(outputPath), 5000);
+        // 5 saniye sonra geçici dosyayı sil
+        setTimeout(() => {
+          if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
+        }, 5000);
       }
     });
   } catch (error) {
@@ -64,10 +67,11 @@ app.post('/synthesize', async (req, res) => {
   }
 });
 
-// ✅ Ek test için ses bilgisini döndüren endpoint
+// 🔍 Test endpoint (opsiyonel)
 app.get('/voice-info', (req, res) => {
   const gender = req.query.gender || 'FEMALE';
-  const voiceName = gender === 'MALE' ? 'tr-TR-Wavenet-B' : 'tr-TR-Wavenet-A';
+  const lang = req.query.lang || 'tr-TR';
+  const voiceName = `${lang}-Wavenet-${gender === 'MALE' ? 'B' : 'A'}`;
   res.json({ selectedVoice: voiceName });
 });
 
