@@ -31,8 +31,20 @@ app.post('/synthesize', async (req, res) => {
     return res.status(400).send({ error: 'Text is required.' });
   }
 
-  // 🌍 Çoklu dil ve cinsiyet desteği ile ses seçimi
-  const voiceName = `${languageCode}-Wavenet-${gender === 'MALE' ? 'B' : 'A'}`;
+  // 👇 Dili kontrol et – bazı dillerde Wavenet sesi yok
+  let voiceName = `${languageCode}-Wavenet-${gender === 'MALE' ? 'B' : 'A'}`;
+
+  // Belirli diller için alternatif sesler
+  const fallbackVoices = {
+    "es-ES": {
+      FEMALE: "es-ES-Standard-A",
+      MALE: "es-ES-Standard-B"
+    },
+  };
+
+  if (fallbackVoices[languageCode]) {
+    voiceName = fallbackVoices[languageCode][gender];
+  }
 
   const request = {
     input: { text },
@@ -55,7 +67,6 @@ app.post('/synthesize', async (req, res) => {
 
     res.sendFile(outputPath, {}, (err) => {
       if (!err) {
-        // 5 saniye sonra geçici dosyayı sil
         setTimeout(() => {
           if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
         }, 5000);
@@ -71,7 +82,19 @@ app.post('/synthesize', async (req, res) => {
 app.get('/voice-info', (req, res) => {
   const gender = req.query.gender || 'FEMALE';
   const lang = req.query.lang || 'tr-TR';
-  const voiceName = `${lang}-Wavenet-${gender === 'MALE' ? 'B' : 'A'}`;
+  let voiceName = `${lang}-Wavenet-${gender === 'MALE' ? 'B' : 'A'}`;
+
+  const fallbackVoices = {
+    "es-ES": {
+      FEMALE: "es-ES-Standard-A",
+      MALE: "es-ES-Standard-B"
+    },
+  };
+
+  if (fallbackVoices[lang]) {
+    voiceName = fallbackVoices[lang][gender];
+  }
+
   res.json({ selectedVoice: voiceName });
 });
 
