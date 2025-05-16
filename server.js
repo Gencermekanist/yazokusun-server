@@ -11,7 +11,9 @@ app.use(cors());
 app.use(bodyParser.json({ limit: '10mb' }));
 
 // 🔐 Google kimlik bilgilerini ortamdan al
-const raw = fs.readFileSync(path.join(__dirname, process.env.GOOGLE_APPLICATION_CREDENTIALS));
+const raw = fs.readFileSync(
+  path.join(__dirname, process.env.GOOGLE_APPLICATION_CREDENTIALS)
+);
 const credentials = JSON.parse(raw);
 
 // 🎤 Google TTS istemcisi
@@ -23,23 +25,35 @@ const client = new textToSpeech.TextToSpeechClient({
   projectId: credentials.project_id,
 });
 
-// 📢 TTS endpoint – Çoklu dil ve ses desteği
+// 📢 TTS endpoint – voiceType parametresiyle WAVENET veya STANDARD seçimi
 app.post('/synthesize', async (req, res) => {
-  const { text, gender = 'FEMALE', languageCode = 'tr-TR', rate = 1.0 } = req.body;
+  const {
+    text,
+    gender = 'FEMALE',
+    languageCode = 'tr-TR',
+    rate = 1.0,
+    voiceType = 'STANDARD'      // Yeni parametre
+  } = req.body;
 
   if (!text || text.trim().length === 0) {
     return res.status(400).send({ error: 'Text is required.' });
   }
 
-  // 👇 Dili kontrol et – bazı dillerde Wavenet sesi yok
-  let voiceName = `${languageCode}-Wavenet-${gender === 'MALE' ? 'B' : 'A'}`;
+  // 👇 voiceType’a göre temel ses seçimi
+  let voiceName;
+  if (voiceType === 'WAVENET') {
+    voiceName = `${languageCode}-Wavenet-${gender === 'MALE' ? 'B' : 'A'}`;
+  } else {
+    voiceName = `${languageCode}-Standard-${gender === 'MALE' ? 'B' : 'A'}`;
+  }
 
-  // Belirli diller için alternatif sesler
+  // Belirli dillerde yalnızca standard ses var → fallback
   const fallbackVoices = {
     "es-ES": {
       FEMALE: "es-ES-Standard-A",
-      MALE: "es-ES-Standard-B"
+      MALE:   "es-ES-Standard-B"
     },
+    // gerekirse başka diller ekle
   };
 
   if (fallbackVoices[languageCode]) {
@@ -63,7 +77,11 @@ app.post('/synthesize', async (req, res) => {
     const [response] = await client.synthesizeSpeech(request);
     const fileName = `output_${Date.now()}.mp3`;
     const outputPath = path.join(__dirname, fileName);
-    await util.promisify(fs.writeFile)(outputPath, response.audioContent, 'binary');
+    await util.promisify(fs.writeFile)(
+      outputPath,
+      response.audioContent,
+      'binary'
+    );
 
     res.sendFile(outputPath, {}, (err) => {
       if (!err) {
@@ -82,15 +100,21 @@ app.post('/synthesize', async (req, res) => {
 app.get('/voice-info', (req, res) => {
   const gender = req.query.gender || 'FEMALE';
   const lang = req.query.lang || 'tr-TR';
-  let voiceName = `${lang}-Wavenet-${gender === 'MALE' ? 'B' : 'A'}`;
+  const voiceType = req.query.voiceType || 'STANDARD';
+
+  let voiceName;
+  if (voiceType === 'WAVENET') {
+    voiceName = `${lang}-Wavenet-${gender === 'MALE' ? 'B' : 'A'}`;
+  } else {
+    voiceName = `${lang}-Standard-${gender === 'MALE' ? 'B' : 'A'}`;
+  }
 
   const fallbackVoices = {
     "es-ES": {
       FEMALE: "es-ES-Standard-A",
-      MALE: "es-ES-Standard-B"
+      MALE:   "es-ES-Standard-B"
     },
   };
-
   if (fallbackVoices[lang]) {
     voiceName = fallbackVoices[lang][gender];
   }
