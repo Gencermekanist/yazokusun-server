@@ -11,10 +11,7 @@ app.use(cors());
 app.use(bodyParser.json({ limit: '10mb' }));
 
 // 🔐 Google kimlik bilgilerini ortamdan al
-const raw = fs.readFileSync(
-  path.join(__dirname, process.env.GOOGLE_APPLICATION_CREDENTIALS)
-);
-const credentials = JSON.parse(raw);
+const credentials = JSON.parse(process.env.TTS_SA_JSON);
 
 // 🎤 Google TTS istemcisi
 const client = new textToSpeech.TextToSpeechClient({
