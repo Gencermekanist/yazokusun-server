@@ -1,9 +1,9 @@
 // server.js  ✨ TAM SÜRÜM ✨
 //
 // Ortam değişkenleri:
-//   TTS_SA_JSON      → Google Cloud TTS servis hesabı JSON
-//   FIREBASE_SA_JSON → Firebase Admin SDK servis hesabı JSON
-//   REFRESH_MINUTES  → Remote Config’i kaç dakikada bir yenilesin (isteğe bağlı)
+//   FIREBASE_SA_JSON      → Firebase Admin SDK servis hesabı JSON
+//   GOOGLE_APPLICATION_CREDENTIALS → Yol olarak Render Secret File (`/etc/secrets/tts-service-account.json`)
+//   REFRESH_MINUTES       → Remote Config’i kaç dakikada bir yenilesin (isteğe bağlı)
 
 const express       = require('express');
 const fs            = require('fs');
@@ -45,14 +45,13 @@ setInterval(
 // ─────────────────────────────────────────────────────────────
 // 2) Google TTS istemcisi
 // ─────────────────────────────────────────────────────────────
-const ttsCred = JSON.parse(process.env.TTS_SA_JSON);
-const ttsClient = new textToSpeech.TextToSpeechClient({
-  credentials: {
-    client_email: ttsCred.client_email,
-    private_key:  ttsCred.private_key,
-  },
-  projectId: ttsCred.project_id,
-});
+// Render’da Secret File olarak yüklenen `tts-service-account.json`
+// ve Google Application Credentials ENV var ile otomatik okunacak.
+const ttsClient = new textToSpeech.TextToSpeechClient();
+// Alternatif olarak açıkça keyFilename belirtmek istersen:
+// const ttsClient = new textToSpeech.TextToSpeechClient({
+//   keyFilename: process.env.GOOGLE_APPLICATION_CREDENTIALS
+// });
 
 // ─────────────────────────────────────────────────────────────
 // 3) Express ayarları
@@ -196,4 +195,3 @@ const PORT = process.env.PORT || 8080;
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`✅ Google TTS Sunucusu çalışıyor → http://0.0.0.0:${PORT}`);
 });
-// Trigger redeploy
