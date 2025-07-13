@@ -1,18 +1,12 @@
-// server.js  ✨ TAM SÜRÜM ✨
-//
-// Ortam değişkenleri:
-//   FIREBASE_SA_JSON      → Firebase Admin SDK servis hesabı JSON
-//   GOOGLE_APPLICATION_CREDENTIALS → Yol olarak Render Secret File (`/etc/secrets/tts-service-account.json`)
-//   REFRESH_MINUTES       → Remote Config’i kaç dakikada bir yenilesin (isteğe bağlı)
-
-const express       = require('express');
-const fs            = require('fs');
-const path          = require('path');
-const util          = require('util');
-const textToSpeech  = require('@google-cloud/text-to-speech');
-const bodyParser    = require('body-parser');
-const cors          = require('cors');
-const admin         = require('firebase-admin');
+// server.js  ✨ GÜNCELLENMİŞ SÜRÜM ✨
+const express = require('express');
+const fs = require('fs');
+const path = require('path');
+const util = require('util');
+const textToSpeech = require('@google-cloud/text-to-speech');
+const bodyParser = require('body-parser');
+const cors = require('cors');
+const admin = require('firebase-admin');
 
 // ─────────────────────────────────────────────────────────────
 // 1) Firebase Admin başlat
@@ -35,23 +29,13 @@ async function refreshRemoteConfig() {
     console.error('⚠️  Remote Config okunamadı, varsayılanlar kullanılıyor', e);
   }
 }
-// Sunucu başlarken ve her X dakikada bir yenile
 refreshRemoteConfig();
-setInterval(
-  refreshRemoteConfig,
-  (parseInt(process.env.REFRESH_MINUTES || '10', 10) || 10) * 60 * 1000
-);
+setInterval(refreshRemoteConfig, (parseInt(process.env.REFRESH_MINUTES || '10', 10) || 10) * 60 * 1000);
 
 // ─────────────────────────────────────────────────────────────
 // 2) Google TTS istemcisi
 // ─────────────────────────────────────────────────────────────
-// Render’da Secret File olarak yüklenen `tts-service-account.json`
-// ve Google Application Credentials ENV var ile otomatik okunacak.
 const ttsClient = new textToSpeech.TextToSpeechClient();
-// Alternatif olarak açıkça keyFilename belirtmek istersen:
-// const ttsClient = new textToSpeech.TextToSpeechClient({
-//   keyFilename: process.env.GOOGLE_APPLICATION_CREDENTIALS
-// });
 
 // ─────────────────────────────────────────────────────────────
 // 3) Express ayarları
@@ -60,7 +44,6 @@ const app = express();
 app.use(cors());
 app.use(bodyParser.json({ limit: '10mb' }));
 
-// Dil haritası (BCP-47)
 const googleLangMap = {
   'ar-AR': 'ar-XA',
   'fa-IR': 'fa-IR',
@@ -73,7 +56,6 @@ const googleLangMap = {
   'pt-BR': 'pt-BR',
   'pt-PT': 'pt-PT',
 };
-// Fallback sesler
 const fallbackVoices = {
   'es-ES': { FEMALE: 'es-ES-Standard-A', MALE: 'es-ES-Standard-B' },
 };
@@ -82,9 +64,9 @@ const fallbackVoices = {
 // 4) Yardımcı: cihaz başına günlük kullanım
 // ─────────────────────────────────────────────────────────────
 async function checkAndUpdateQuota(deviceId, textLen) {
-  const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
-  const doc   = db.collection('deviceUsage').doc(deviceId);
-  const snap  = await doc.get();
+  const today = new Date().toISOString().slice(0, 10);
+  const doc = db.collection('deviceUsage').doc(deviceId);
+  const snap = await doc.get();
 
   let used = 0;
   if (snap.exists && snap.data().day === today) {
@@ -92,7 +74,7 @@ async function checkAndUpdateQuota(deviceId, textLen) {
   }
 
   const limit = remoteConfig.daily_free_chars;
-  if (used + textLen > limit) return false;                // kota doldu
+  if (used + textLen > limit) return false;
 
   await doc.set({ day: today, used: used + textLen }, { merge: true });
   return true;
@@ -104,16 +86,16 @@ async function checkAndUpdateQuota(deviceId, textLen) {
 app.post('/synthesize', async (req, res) => {
   let {
     text,
-    gender      = 'FEMALE',
-    languageCode= 'tr-TR',
-    rate        = 1.0,
-    voiceType   = 'WAVENET',
-    textLen,                 // mobil taraf gönderiyor
-    deviceId,                // mobil taraf gönderiyor
-    isPlus = false,          // mobil taraf gönderiyor
+    gender = 'FEMALE',
+    languageCode = 'tr-TR',
+    rate = 1.0,
+    voiceType = 'WAVENET',
+    textLen,
+    deviceId,
+    isPlus = false,
+    saveMp3 = false, // 🔥 yeni eklendi
   } = req.body;
 
-  // Basit doğrulamalar
   if (!text || !text.trim()) {
     return res.status(400).json({ error: 'Text is required.' });
   }
@@ -124,15 +106,14 @@ app.post('/synthesize', async (req, res) => {
     textLen = Buffer.byteLength(text, 'utf8');
   }
 
-  // ── KOTA KONTROLÜ (Plus kullanıcı bypass) ──
-  if (!isPlus) {
+  // 🔐 KOTA KONTROLÜ – sadece okunuyorsa karakter düş
+  if (!isPlus && !saveMp3) {
     const ok = await checkAndUpdateQuota(deviceId, textLen);
     if (!ok) {
       return res.status(429).json({ error: 'quotaExceeded' });
     }
   }
 
-  // ── VoiceName seçimi ──
   const voiceLang = googleLangMap[languageCode] || languageCode;
   let voiceName;
   if (voiceType === 'WAVENET') {
@@ -147,9 +128,16 @@ app.post('/synthesize', async (req, res) => {
   }
 
   const request = {
-    input : { text },
-    voice : { languageCode: voiceLang, ssmlGender: gender, name: voiceName },
-    audioConfig: { audioEncoding: 'MP3', speakingRate: parseFloat(rate) },
+    input: { text },
+    voice: {
+      languageCode: voiceLang,
+      ssmlGender: gender,
+      name: voiceName,
+    },
+    audioConfig: {
+      audioEncoding: 'MP3',
+      speakingRate: parseFloat(rate),
+    },
   };
 
   try {
@@ -167,11 +155,11 @@ app.post('/synthesize', async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────
-// 6) Yardımcı endpoint – seçilen voice’ı görmek için
+// 6) Yardımcı endpoint – voice info
 // ─────────────────────────────────────────────────────────────
 app.get('/voice-info', (req, res) => {
-  const gender    = req.query.gender    || 'FEMALE';
-  const lang      = req.query.lang      || 'tr-TR';
+  const gender = req.query.gender || 'FEMALE';
+  const lang = req.query.lang || 'tr-TR';
   const voiceType = req.query.voiceType || 'WAVENET';
 
   const voiceLang = googleLangMap[lang] || lang;
@@ -189,9 +177,9 @@ app.get('/voice-info', (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────
-// 7) Sunucuyu çalıştır
+// 7) Sunucuyu başlat
 // ─────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`✅ Google TTS Sunucusu çalışıyor → http://0.0.0.0:${PORT}`);
+  console.log(`✅ Google TTS sunucusu çalışıyor → http://0.0.0.0:${PORT}`);
 });
