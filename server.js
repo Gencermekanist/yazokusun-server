@@ -94,7 +94,7 @@ async function checkAndUpdateQuota(deviceId, textLen) {
   const limit = remoteConfig.daily_free_chars;
   if (used + textLen > limit) return false;                // kota doldu
 
-  await doc.set({ day: today, used: used + textLen });
+  await doc.set({ day: today, used: used + textLen }, { merge: true });
   return true;
 }
 
