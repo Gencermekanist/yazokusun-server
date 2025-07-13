@@ -1,4 +1,5 @@
-// server.js  ✨ GÜNCELLENMİŞ SÜRÜM ✨
+
+// server.js  ✨ TEMİZLENMİŞ Wavenet SÜRÜM ✨
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
@@ -8,38 +9,29 @@ const bodyParser = require('body-parser');
 const cors = require('cors');
 const admin = require('firebase-admin');
 
-// ─────────────────────────────────────────────────────────────
 // 1) Firebase Admin başlat
-// ─────────────────────────────────────────────────────────────
 const fbCred = JSON.parse(process.env.FIREBASE_SA_JSON);
-admin.initializeApp({
-  credential: admin.credential.cert(fbCred),
-});
+admin.initializeApp({ credential: admin.credential.cert(fbCred) });
 const db = admin.firestore();
 
-// Remote Config şablonunu bellekte tutacağız
+// Remote Config (karakter limiti)
 let remoteConfig = { daily_free_chars: 2000 };
 async function refreshRemoteConfig() {
   try {
     const tmpl = await admin.remoteConfig().getTemplate();
-    remoteConfig.daily_free_chars =
-      parseInt(tmpl.parameters['daily_free_chars']?.defaultValue?.value ?? 2000);
+    remoteConfig.daily_free_chars = parseInt(tmpl.parameters['daily_free_chars']?.defaultValue?.value ?? 2000);
     console.log('🔄 Remote Config yenilendi:', remoteConfig);
   } catch (e) {
-    console.error('⚠️  Remote Config okunamadı, varsayılanlar kullanılıyor', e);
+    console.error('⚠️ Remote Config okunamadı:', e);
   }
 }
 refreshRemoteConfig();
-setInterval(refreshRemoteConfig, (parseInt(process.env.REFRESH_MINUTES || '10', 10) || 10) * 60 * 1000);
+setInterval(refreshRemoteConfig, (parseInt(process.env.REFRESH_MINUTES || '10', 10)) * 60 * 1000);
 
-// ─────────────────────────────────────────────────────────────
 // 2) Google TTS istemcisi
-// ─────────────────────────────────────────────────────────────
 const ttsClient = new textToSpeech.TextToSpeechClient();
 
-// ─────────────────────────────────────────────────────────────
 // 3) Express ayarları
-// ─────────────────────────────────────────────────────────────
 const app = express();
 app.use(cors());
 app.use(bodyParser.json({ limit: '10mb' }));
@@ -56,13 +48,8 @@ const googleLangMap = {
   'pt-BR': 'pt-BR',
   'pt-PT': 'pt-PT',
 };
-const fallbackVoices = {
-  'es-ES': { FEMALE: 'es-ES-Standard-A', MALE: 'es-ES-Standard-B' },
-};
 
-// ─────────────────────────────────────────────────────────────
-// 4) Yardımcı: cihaz başına günlük kullanım
-// ─────────────────────────────────────────────────────────────
+// 4) Karakter kullanım kontrolü
 async function checkAndUpdateQuota(deviceId, textLen) {
   const today = new Date().toISOString().slice(0, 10);
   const doc = db.collection('deviceUsage').doc(deviceId);
@@ -80,9 +67,7 @@ async function checkAndUpdateQuota(deviceId, textLen) {
   return true;
 }
 
-// ─────────────────────────────────────────────────────────────
-// 5) Ana endpoint – /synthesize
-// ─────────────────────────────────────────────────────────────
+// 5) Ana endpoint
 app.post('/synthesize', async (req, res) => {
   let {
     text,
@@ -93,51 +78,25 @@ app.post('/synthesize', async (req, res) => {
     textLen,
     deviceId,
     isPlus = false,
-    saveMp3 = false, // 🔥 yeni eklendi
+    saveMp3 = false,
   } = req.body;
 
-  if (!text || !text.trim()) {
-    return res.status(400).json({ error: 'Text is required.' });
-  }
-  if (!deviceId) {
-    return res.status(400).json({ error: 'deviceId missing.' });
-  }
-  if (!textLen) {
-    textLen = Buffer.byteLength(text, 'utf8');
-  }
+  if (!text || !text.trim()) return res.status(400).json({ error: 'Text is required.' });
+  if (!deviceId) return res.status(400).json({ error: 'deviceId missing.' });
+  if (!textLen) textLen = Buffer.byteLength(text, 'utf8');
 
-  // 🔐 KOTA KONTROLÜ – sadece okunuyorsa karakter düş
   if (!isPlus && !saveMp3) {
     const ok = await checkAndUpdateQuota(deviceId, textLen);
-    if (!ok) {
-      return res.status(429).json({ error: 'quotaExceeded' });
-    }
+    if (!ok) return res.status(429).json({ error: 'quotaExceeded' });
   }
 
   const voiceLang = googleLangMap[languageCode] || languageCode;
-  let voiceName;
-  if (voiceType === 'WAVENET') {
-    voiceName = `${voiceLang}-Wavenet-${gender === 'MALE' ? 'B' : 'D'}`;
-  } else if (voiceType === 'NEURAL2') {
-    voiceName = `${voiceLang}-Neural2-${gender === 'MALE' ? 'B' : 'D'}`;
-  } else {
-    voiceName = `${voiceLang}-Standard-${gender === 'MALE' ? 'B' : 'A'}`;
-  }
-  if (fallbackVoices[voiceLang]) {
-    voiceName = fallbackVoices[voiceLang][gender];
-  }
+  const voiceName = `${voiceLang}-Wavenet-${gender === 'MALE' ? 'B' : 'D'}`;
 
   const request = {
     input: { text },
-    voice: {
-      languageCode: voiceLang,
-      ssmlGender: gender,
-      name: voiceName,
-    },
-    audioConfig: {
-      audioEncoding: 'MP3',
-      speakingRate: parseFloat(rate),
-    },
+    voice: { languageCode: voiceLang, ssmlGender: gender, name: voiceName },
+    audioConfig: { audioEncoding: 'MP3', speakingRate: parseFloat(rate) },
   };
 
   try {
@@ -154,31 +113,16 @@ app.post('/synthesize', async (req, res) => {
   }
 });
 
-// ─────────────────────────────────────────────────────────────
-// 6) Yardımcı endpoint – voice info
-// ─────────────────────────────────────────────────────────────
+// 6) Yardımcı endpoint – seçilen voice
 app.get('/voice-info', (req, res) => {
   const gender = req.query.gender || 'FEMALE';
   const lang = req.query.lang || 'tr-TR';
-  const voiceType = req.query.voiceType || 'WAVENET';
-
   const voiceLang = googleLangMap[lang] || lang;
-  let voiceName;
-  if (voiceType === 'WAVENET') {
-    voiceName = `${voiceLang}-Wavenet-${gender === 'MALE' ? 'B' : 'D'}`;
-  } else if (voiceType === 'NEURAL2') {
-    voiceName = `${voiceLang}-Neural2-${gender === 'MALE' ? 'B' : 'D'}`;
-  } else {
-    voiceName = `${voiceLang}-Standard-${gender === 'MALE' ? 'B' : 'A'}`;
-  }
-  if (fallbackVoices[voiceLang]) voiceName = fallbackVoices[voiceLang][gender];
-
+  const voiceName = `${voiceLang}-Wavenet-${gender === 'MALE' ? 'B' : 'D'}`;
   res.json({ selectedVoice: voiceName, freeDailyLimit: remoteConfig.daily_free_chars });
 });
 
-// ─────────────────────────────────────────────────────────────
 // 7) Sunucuyu başlat
-// ─────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`✅ Google TTS sunucusu çalışıyor → http://0.0.0.0:${PORT}`);
