@@ -1,12 +1,12 @@
-// server.js  — Seçenek B: Kota yönetimi tamamen server-side
-const express           = require('express');
-const fs                = require('fs');
-const path              = require('path');
-const util              = require('util');
-const textToSpeech      = require('@google-cloud/text-to-speech');
-const bodyParser        = require('body-parser');
-const cors              = require('cors');
-const admin             = require('firebase-admin');
+// server.js
+const express = require('express');
+const fs = require('fs');
+const path = require('path');
+const util = require('util');
+const textToSpeech = require('@google-cloud/text-to-speech');
+const bodyParser = require('body-parser');
+const cors = require('cors');
+const admin = require('firebase-admin');
 
 // — 1) Firebase Admin başlat
 const fbCred = JSON.parse(process.env.FIREBASE_SA_JSON);
@@ -15,15 +15,15 @@ const db = admin.firestore();
 
 // — 2) Remote Config (karakter limitleri)
 let remoteConfig = {
-  weekly_free_chars:   2000,    // Haftalık ücretsiz kullanıcı kotası
+  weekly_free_chars:    2000,    // Haftalık ücretsiz kullanıcı kotası
   monthly_free_chars:  8000,    // Aylık ücretsiz (4×haftalık)
-  monthly_plus_chars:  500000   // Plus aboneler için aylık kota
+  monthly_plus_chars:  500000    // Plus aboneler için aylık kota
 };
 
 async function refreshRemoteConfig() {
   try {
     const tmpl = await admin.remoteConfig().getTemplate();
-    remoteConfig.weekly_free_chars   = parseInt(
+    remoteConfig.weekly_free_chars    = parseInt(
       tmpl.parameters['weekly_free_chars']?.defaultValue?.value  ?? remoteConfig.weekly_free_chars, 10
     );
     remoteConfig.monthly_free_chars  = parseInt(
@@ -45,8 +45,8 @@ setInterval(
 
 // — 3) Yardımcı: Haftanın Pazartesi gününü YYYY-MM-DD formatında döner
 function getWeekStart(date) {
-  const d   = new Date(date);
-  const day = d.getDay();               // Pazar=0, Pazartesi=1, … Cumartesi=6
+  const d    = new Date(date);
+  const day = d.getDay();          // Pazar=0, Pazartesi=1, … Cumartesi=6
   const diff = d.getDate() - day + (day === 0 ? -6 : 1);
   d.setDate(diff);
   return d.toISOString().slice(0, 10);  // “YYYY-MM-DD”
@@ -55,7 +55,7 @@ function getWeekStart(date) {
 // — 4) Kota kontrol ve güncelleme
 async function checkAndUpdateQuota(deviceId, textLen, isPlus) {
   const now      = new Date();
-  const weekKey  = getWeekStart(now);          // “YYYY-MM-DD”
+  const weekKey  = getWeekStart(now);           // “YYYY-MM-DD”
   const monthKey = now.toISOString().slice(0,7);// “YYYY-MM”
 
   const docRef = db.collection('deviceUsage').doc(deviceId);
@@ -116,9 +116,9 @@ app.post('/synthesize', async (req, res) => {
   } = req.body;
 
   // Gerekli parametre kontrolü
-  if (!text || !text.trim())            return res.status(400).json({ error: 'Text is required.' });
-  if (!deviceId)                        return res.status(400).json({ error: 'deviceId missing.' });
-  if (!textLen)                         textLen = Buffer.byteLength(text, 'utf8');
+  if (!text || !text.trim())           return res.status(400).json({ error: 'Text is required.' });
+  if (!deviceId)                       return res.status(400).json({ error: 'deviceId missing.' });
+  if (!textLen)                        textLen = Buffer.byteLength(text, 'utf8');
 
   // Kota kontrol
   const ok = await checkAndUpdateQuota(deviceId, textLen, isPlus);
@@ -147,6 +147,19 @@ app.post('/synthesize', async (req, res) => {
     console.error('TTS Error:', e);
     res.status(500).json({ error: e.message || 'Google TTS failed.' });
   }
+});
+
+// — 6b) Haftalık/aylık lazy-reset endpoint
+app.post('/reset-quota', async (req, res) => {
+  const { deviceId, isPlus = false } = req.body;
+  if (!deviceId) {
+    return res.status(400).json({ error: 'deviceId missing' });
+  }
+
+  // Sıfırlama için checkAndUpdateQuota'ya textLen=0 veriyoruz:
+  const ok = await checkAndUpdateQuota(deviceId, 0, isPlus);
+  // ok her zaman true dönecek çünkü 0 ekleme hiçbir limiti aşmaz
+  res.json({ success: ok });
 });
 
 // — 7) Kota bilgisi endpoint’i (isteğe bağlı UI için)
